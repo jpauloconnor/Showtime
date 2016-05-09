@@ -21,15 +21,80 @@
 */
 
 import UIKit
+import JavaScriptCore
 
 let movieUrl = "https://itunes.apple.com/us/rss/topmovies/limit=50/json"
 
 class MovieService {
   
-  func loadMoviesWithLimit(limit: Double, onComplete complete:[Movie] -> ()) { 
-  }
-  
-  func parseResponse(response: String, withLimit limit: Double) -> [Movie] {
-    return []
-  }
+    //PROPERTIES
+    
+    //1 Load common.js file from the application bundle
+    //2 After loading the file, the context object evaluates contents by calling context.evauluateScript(), passing the file contents for the parameter.
+    lazy var context: JSContext? = {
+        let context = JSContext()
+        
+        // 1
+        guard let
+            commonJSPath = NSBundle.mainBundle().pathForResource("common", ofType: "js") else {
+                print("Unable to read resource files.")
+                return nil
+        }
+        
+        // 2
+        do {
+            let common = try String(contentsOfFile: commonJSPath, encoding: NSUTF8StringEncoding)
+            context.evaluateScript(common)
+        } catch (let error) {
+            print("Error while processing script file: \(error)")
+        }
+        
+        return context
+    }()
+    
+    //METHODS
+    
+    //Fetches the movies using the default shared NSURLSession.
+    //Before passing response to JS code, need to provide an execution context for the response.
+    
+    func loadMoviesWithLimit(limit: Double, onComplete complete: [Movie] -> ()) {
+        guard let url = NSURL(string: movieUrl) else {
+            print("Invalid url format: \(movieUrl)")
+            return
+        }
+        
+        NSURLSession.sharedSession().dataTaskWithURL(url) { data, _, _ in
+            guard let data = data,
+                jsonString = String(data: data, encoding: NSUTF8StringEncoding) else {
+                    print("Error while parsing the response data.")
+                    return
+            }
+            
+            let movies = self.parseResponse(jsonString, withLimit:limit)
+            complete(movies)
+            
+            }.resume()
+    }
+
+    
+    //Reaches out to shared JS code to process API response
+        
+    func parseResponse(response: String, withLimit limit: Double) -> [Movie] {
+        // 1
+        guard let context = context else {
+            print("JSContext not found.")
+            return []
+        }
+        
+        // 2
+        let parseFunction = context.objectForKeyedSubscript("parseJson")
+        let parsed = parseFunction.callWithArguments([response]).toArray()
+        
+        // 3
+        let filterFunction = context.objectForKeyedSubscript("filterByLimit")
+        let filtered = filterFunction.callWithArguments([parsed, limit]).toArray()
+        
+        // 4
+        return []
+    }
 }
