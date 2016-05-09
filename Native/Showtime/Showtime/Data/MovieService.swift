@@ -28,7 +28,7 @@ let movieUrl = "https://itunes.apple.com/us/rss/topmovies/limit=50/json"
 class MovieService {
   
     //PROPERTIES
-    lazy var context: JSContext? = {
+        lazy var context: JSContext? = {
         let context = JSContext()
         
         //1 Load common.js file from the application bundle
@@ -94,6 +94,28 @@ class MovieService {
         let filterFunction = context.objectForKeyedSubscript("filterByLimit")
         let filtered = filterFunction.callWithArguments([parsed, limit]).toArray()
         
-        return []
+        // Use this functino to cast the block to AnyObject
+        let builderBlock = unsafeBitCast(Movie.movieBuilder, AnyObject.self)
+        
+        // Lets you load the block into JS runtime. Use evaluate to get a reference to yoru block in JS
+        context.setObject(builderBlock, forKeyedSubscript: "movieBuilder")
+        let builder = context.evaluateScript("movieBuilder")
+        
+        // Call block from JS passing in array of JSValue objects as the arg. Return value can be cast to an array of Movie objects.
+        guard let unwrappedFiltered = filtered,
+            let movies = builder.callWithArguments([unwrappedFiltered]).toArray() as? [Movie] else {
+                print("Error while processing movies.")
+                return []
+        }
+        
+        return movies
     }
 }
+
+
+
+
+
+
+
+
