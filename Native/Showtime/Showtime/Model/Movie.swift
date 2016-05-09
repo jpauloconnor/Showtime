@@ -33,4 +33,23 @@ class Movie: NSObject {
     self.price = price
     self.imageUrl = imageUrl
   }
+    
+    //METHODS:
+    
+    //Closure that takes an array of JS objects(dictionaries) uses them to construct movie instances.
+    static let movieBuilder: @convention(block) [[String : String]] -> [Movie] = { object in
+        return object.map { dict in
+            
+            guard let
+                title = dict["title"],
+                price = dict["price"],
+                imageUrl = dict["imageUrl"] else {
+                    print("unable to parse Movie objects.")
+                    fatalError()
+            }
+            
+            return Movie(title: title, price: price, imageUrl: imageUrl)
+        }
+    }
+    
 }
