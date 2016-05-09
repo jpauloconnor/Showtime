@@ -21,6 +21,17 @@
 */
 
 import Foundation
+import JavaScriptCore
+
+//Specify all the properties to export/define a class method to construct Movie objects in JS. 
+@objc protocol MovieJSExports: JSExport {
+    var title: String { get set }
+    var price: String { get set }
+    var imageUrl: String { get set }
+    
+    static func movieWithTitle(title: String, price: String, imageUrl: String) -> Movie
+}
+
 
 class Movie: NSObject {
   
