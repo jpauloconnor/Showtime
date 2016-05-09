@@ -28,27 +28,32 @@ let movieUrl = "https://itunes.apple.com/us/rss/topmovies/limit=50/json"
 class MovieService {
   
     //PROPERTIES
+
         lazy var context: JSContext? = {
-        let context = JSContext()
-        
-        //1 Load common.js file from the application bundle
-        guard let
-            commonJSPath = NSBundle.mainBundle().pathForResource("common", ofType: "js") else {
+                
+            let context = JSContext()
+                
+            guard let
+                commonJSPath = NSBundle.mainBundle().pathForResource("common", ofType: "js"),
+                additionsJSPath = NSBundle.mainBundle().pathForResource("additions", ofType: "js") else {
                 print("Unable to read resource files.")
                 return nil
-        }
-        
-        //2 After loading the file, the context object evaluates contents by calling context.evauluateScript(), passing the file contents for the parameter.
-        do {
-            let common = try String(contentsOfFile: commonJSPath, encoding: NSUTF8StringEncoding)
-            context.evaluateScript(common)
-        } catch (let error) {
-            print("Error while processing script file: \(error)")
-        }
-        
-        return context
-    }()
-    
+            }
+                
+            do {
+                let common = try String(contentsOfFile: commonJSPath, encoding: NSUTF8StringEncoding)
+                let additions = try String(contentsOfFile: additionsJSPath, encoding: NSUTF8StringEncoding)
+                    
+                context.setObject(Movie.self, forKeyedSubscript: "Movie")
+                context.evaluateScript(common)
+                context.evaluateScript(additions)
+            } catch (let error) {
+                print("Error while processing script file: \(error)")
+            }
+                
+            return context
+        }()
+            
     //METHODS
     
     //Fetches the movies using the default shared NSURLSession.
@@ -72,39 +77,22 @@ class MovieService {
             
             }.resume()
     }
-
-    
-    //Reaches out to shared JS code to process API response
-    
     
     func parseResponse(response: String, withLimit limit: Double) -> [Movie] {
-        //1 Make sure context object is initialized. Any errors -> don't resusme
         guard let context = context else {
             print("JSContext not found.")
             return []
         }
         
-        // 2 Ask context object to provide parseJSON() method. Result of query will be wrapped in a JSValue object.
         let parseFunction = context.objectForKeyedSubscript("parseJson")
-        
-        // 2.5 Invoke method specify args with array format. Convert the JS value to array.
         let parsed = parseFunction.callWithArguments([response]).toArray()
         
-        // 3 - Filters list that fit given price limit
         let filterFunction = context.objectForKeyedSubscript("filterByLimit")
         let filtered = filterFunction.callWithArguments([parsed, limit]).toArray()
         
-        // Use this functino to cast the block to AnyObject
-        let builderBlock = unsafeBitCast(Movie.movieBuilder, AnyObject.self)
-        
-        // Lets you load the block into JS runtime. Use evaluate to get a reference to yoru block in JS
-        context.setObject(builderBlock, forKeyedSubscript: "movieBuilder")
-        let builder = context.evaluateScript("movieBuilder")
-        
-        // Call block from JS passing in array of JSValue objects as the arg. Return value can be cast to an array of Movie objects.
+        let mapFunction = context.objectForKeyedSubscript("mapToNative")
         guard let unwrappedFiltered = filtered,
-            let movies = builder.callWithArguments([unwrappedFiltered]).toArray() as? [Movie] else {
-                print("Error while processing movies.")
+            movies = mapFunction.callWithArguments([unwrappedFiltered]).toArray() as? [Movie] else {
                 return []
         }
         
